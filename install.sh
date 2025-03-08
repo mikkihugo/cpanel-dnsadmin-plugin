@@ -1,115 +1,210 @@
-#!/usr/bin/env bash
-
-# StackPath dnsadmin installer
+#!/bin/bash
 #
-# Make sure cPanel is installed then copy the plugin's Perl modules into place
-# in the cPanel installation.
+# Install script for CentralCloud cPanel DNS Clustering Plugin
+# 
+# This script will install the CentralCloud DNS clustering plugin for cPanel
+# It requires root privileges to run
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Directories
 CPANEL_ROOT="/usr/local/cpanel"
-LOCAL_ROOT=$(pwd)
-REMOTE_MODULE="Cpanel/NameServer/Remote/StackPath.pm"
-SETUP_MODULE="Cpanel/NameServer/Setup/Remote/StackPath.pm"
-API_MODULE="Cpanel/NameServer/Remote/StackPath/API.pm"
-PROJECT_URL="https://github.com/stackpath/cpanel-dnsadmin-plugin"
+CPANEL_LIB="$CPANEL_ROOT/Cpanel"
+MODULE_DIR="$CPANEL_LIB/NameServer/Remote"
+API_DIR="$MODULE_DIR/CentralCloud"
+SETUP_DIR="$CPANEL_LIB/NameServer/Setup/Remote"
+WHM_CGI_DIR="$CPANEL_ROOT/whostmgr/docroot/cgi"
+WHM_ADDON_DIR="$CPANEL_ROOT/whostmgr/docroot/cgi/addons"
+WHM_ICONS_DIR="$CPANEL_ROOT/whostmgr/docroot/addon_plugins"
 
-# Create a directory with pretty output
-make_directory() {
-    echo -n "${1}... "
-    if RESULT=$(mkdir -p ${1} 2>&1); then
-        echo "OK"
-    else
-        echo "FAILED"
-        echo ${RESULT}
-        echo
-        echo "Unable to create ${1}."
-        echo "Please contact your systems administrator and try again."
-        echo
+# Check if running as root
+if [ "$EUID" -ne 0 ]; then
+  echo -e "${RED}Please run as root${NC}"
+  exit 1
+fi
 
-        exit 1
-    fi
+echo -e "${BLUE}CentralCloud DNS Clustering Plugin Installer${NC}"
+echo -e "${BLUE}========================================${NC}"
+echo
+
+# Function to display progress messages
+progress() {
+  echo -e "${GREEN}[*]${NC} $1"
 }
 
-# Copy a file with pretty output
-copy_file() {
-    echo -n "${2}... "
-    if RESULT=$(cp ${1} ${2} 2>&1); then
-        echo "OK"
-    else
-        echo "FAILED"
-        echo ${RESULT}
-        echo
-        echo "Unable to copy ${2}."
-        echo "Please contact your systems administrator and try again."
-        echo
-
-        exit 1
-    fi
+# Function to display warning messages
+warning() {
+  echo -e "${YELLOW}[!]${NC} $1"
 }
 
-echo "Welcome to the StackPath dnsadmin plugin installer"
-echo "----------"
-echo
+# Function to display error messages
+error() {
+  echo -e "${RED}[ERROR]${NC} $1"
+}
 
-# Assume that cPanel is installed if /usr/local/cpanel exists
-echo -n "Looking for cPanel... "
-if [[ -d ${CPANEL_ROOT} ]]; then
-    echo "OK"
-else
-    echo "FAILED"
-    echo
-    echo "Unable to locate a cPanel installation at ${CPANEL_ROOT}."
-    echo "Please verify cPanel is installed and try again."
-    echo
-
-    exit 1
+# Check if cPanel is installed
+if [ ! -d "$CPANEL_LIB" ]; then
+  error "cPanel installation not found at $CPANEL_LIB"
+  exit 1
 fi
 
-echo -n "Validating write access... "
-if [[ -w ${CPANEL_ROOT} ]]; then
-    echo "OK"
-else
-    echo "FAILED"
-    echo
-    echo "The cPanel installation at ${CPANEL_ROOT} is not writable."
-    echo "Please run this script as root and try again."
-    echo
+# Create required directories
+progress "Creating required directories..."
+mkdir -p "$MODULE_DIR"
+mkdir -p "$API_DIR"
+mkdir -p "$SETUP_DIR"
+mkdir -p "$WHM_ADDON_DIR"
+mkdir -p "$WHM_ICONS_DIR"
 
-    exit 1
+# Install the module files
+progress "Installing module files..."
+
+# Check if files exist and create backup if they do
+if [ -f "$MODULE_DIR/CentralCloud.pm" ]; then
+  warning "Found existing CentralCloud module, creating backup..."
+  cp "$MODULE_DIR/CentralCloud.pm" "$MODULE_DIR/CentralCloud.pm.bak.$(date +%s)"
 fi
 
-# Make sure files exist before copying them into place
-echo -n "Validating local files... "
-if [[ -f "${LOCAL_ROOT}/lib/${REMOTE_MODULE}" ]] && [[ -f "${LOCAL_ROOT}/lib/${SETUP_MODULE}" ]] && [[ -f "${LOCAL_ROOT}/lib/${API_MODULE}" ]]; then
-    echo "OK"
-else
-    echo "FAILED"
-    echo
-    echo "Local files are missing."
-    echo "Please re-download the plugin from"
-    echo "${PROJECT_URL} and try again."
-    echo
-
-    exit 1
+if [ -f "$API_DIR/API.pm" ]; then
+  warning "Found existing CentralCloud API module, creating backup..."
+  cp "$API_DIR/API.pm" "$API_DIR/API.pm.bak.$(date +%s)"
 fi
 
-# Make necessary directories
-echo
-echo "Making directories"
-make_directory "${CPANEL_ROOT}/Cpanel/NameServer/Remote/StackPath"
+if [ -f "$SETUP_DIR/CentralCloud.pm" ]; then
+  warning "Found existing CentralCloud setup module, creating backup..."
+  cp "$SETUP_DIR/CentralCloud.pm" "$SETUP_DIR/CentralCloud.pm.bak.$(date +%s)"
+fi
 
-# Copy files into place
-echo
-echo "Copying files"
-copy_file "${LOCAL_ROOT}/lib/${REMOTE_MODULE}" "${CPANEL_ROOT}/${REMOTE_MODULE}"
-copy_file "${LOCAL_ROOT}/lib/${SETUP_MODULE}" "${CPANEL_ROOT}/${SETUP_MODULE}"
-copy_file "${LOCAL_ROOT}/lib/${API_MODULE}" "${CPANEL_ROOT}/${API_MODULE}"
+if [ -f "$WHM_CGI_DIR/addon_centralcloud.cgi" ]; then
+  warning "Found existing WHM integration script, creating backup..."
+  cp "$WHM_CGI_DIR/addon_centralcloud.cgi" "$WHM_CGI_DIR/addon_centralcloud.cgi.bak.$(date +%s)"
+fi
 
-# All done!
-echo
-echo "----------"
-echo "The StackPath dnsadmin plugin has been installed."
-echo "Log into WHM and visit the DNS Clustering page to configure it. Enjoy!"
-echo
-echo ${PROJECT_URL}
-echo "https://stackpath.com/"
-echo
+# Copy module files from the install package
+if [ -f "./lib/Cpanel/NameServer/Remote/CentralCloud.pm" ]; then
+  progress "Installing main module from package..."
+  cp "./lib/Cpanel/NameServer/Remote/CentralCloud.pm" "$MODULE_DIR/CentralCloud.pm"
+else
+  error "Main module file not found in package!"
+  exit 1
+fi
+
+if [ -f "./lib/Cpanel/NameServer/Remote/CentralCloud/API.pm" ]; then
+  progress "Installing API module from package..."
+  cp "./lib/Cpanel/NameServer/Remote/CentralCloud/API.pm" "$API_DIR/API.pm"
+else
+  error "API module file not found in package!"
+  exit 1
+fi
+
+if [ -f "./lib/Cpanel/NameServer/Setup/Remote/CentralCloud.pm" ]; then
+  progress "Installing setup module from package..."
+  cp "./lib/Cpanel/NameServer/Setup/Remote/CentralCloud.pm" "$SETUP_DIR/CentralCloud.pm"
+else
+  error "Setup module file not found in package!"
+  exit 1
+fi
+
+# Install WHM integration files
+progress "Installing WHM integration files..."
+
+if [ -f "./addon_centralcloud.cgi" ]; then
+  cp "./addon_centralcloud.cgi" "$WHM_CGI_DIR/addon_centralcloud.cgi"
+  chmod 755 "$WHM_CGI_DIR/addon_centralcloud.cgi"
+else
+  error "WHM integration script not found in package!"
+  exit 1
+fi
+
+if [ -f "./centralcloud.conf" ]; then
+  cp "./centralcloud.conf" "$WHM_ADDON_DIR/centralcloud.conf"
+else
+  error "WHM plugin configuration not found in package!"
+  exit 1
+fi
+
+if [ -f "./centralcloud.png" ]; then
+  cp "./centralcloud.png" "$WHM_ICONS_DIR/centralcloud.png"
+elif [ -f "./centralcloud.svg" ]; then
+  progress "Found SVG icon, converting to PNG..."
+  # Try to convert SVG to PNG if ImageMagick is available
+  if command -v convert >/dev/null 2>&1; then
+    convert -background none -resize 64x64 "./centralcloud.svg" "$WHM_ICONS_DIR/centralcloud.png"
+  else
+    warning "ImageMagick not found, cannot convert SVG to PNG"
+    warning "Using default icon instead..."
+    # Download a default icon
+    curl -s "https://raw.githubusercontent.com/powerdns/pdns/master/docs/logos/powerdns-logo-500px.png" > "$WHM_ICONS_DIR/centralcloud.png"
+  fi
+else
+  warning "Icon file not found, using default..."
+  # Create a default icon if not provided
+  curl -s "https://raw.githubusercontent.com/powerdns/pdns/master/docs/logos/powerdns-logo-500px.png" > "$WHM_ICONS_DIR/centralcloud.png"
+fi
+
+# Set permissions
+progress "Setting file permissions..."
+chmod 644 "$MODULE_DIR/CentralCloud.pm"
+chmod 644 "$API_DIR/API.pm"
+chmod 644 "$SETUP_DIR/CentralCloud.pm"
+chmod 644 "$WHM_ADDON_DIR/centralcloud.conf"
+chmod 644 "$WHM_ICONS_DIR/centralcloud.png"
+
+# Create log file
+LOG_FILE="/var/log/centralcloud-plugin.log"
+progress "Creating log file at $LOG_FILE"
+touch "$LOG_FILE"
+chmod 644 "$LOG_FILE"
+chown nobody:nobody "$LOG_FILE"
+
+# Register the plugin with WHM if needed
+progress "Registering plugin with WHM..."
+if [ -x "$CPANEL_ROOT/bin/manage_hooks" ]; then
+    $CPANEL_ROOT/bin/manage_hooks add module CentralCloud
+fi
+
+# Check if all files were installed correctly
+if [ -f "$MODULE_DIR/CentralCloud.pm" ] && [ -f "$API_DIR/API.pm" ] && [ -f "$SETUP_DIR/CentralCloud.pm" ] && [ -f "$WHM_CGI_DIR/addon_centralcloud.cgi" ]; then
+  progress "Checking installation..."
+  grep -q "package Cpanel::NameServer::Remote::CentralCloud;" "$MODULE_DIR/CentralCloud.pm"
+  MAIN_CHECK=$?
+  grep -q "package Cpanel::NameServer::Remote::CentralCloud::API;" "$API_DIR/API.pm"
+  API_CHECK=$?
+  grep -q "package Cpanel::NameServer::Setup::Remote::CentralCloud;" "$SETUP_DIR/CentralCloud.pm"
+  SETUP_CHECK=$?
+  
+  if [ $MAIN_CHECK -eq 0 ] && [ $API_CHECK -eq 0 ] && [ $SETUP_CHECK -eq 0 ]; then
+    echo
+    echo -e "${GREEN}CentralCloud DNS Clustering Plugin successfully installed!${NC}"
+    echo
+    echo -e "To configure the plugin:"
+    echo -e "1. Log in to WHM"
+    echo -e "2. Go to 'Clusters' > 'Configure Cluster'"
+    echo -e "3. Click 'Add a new server to the cluster'"
+    echo -e "4. Select 'CentralCloud' as the DNS server type"
+    echo -e "5. Enter your API and HostBill credentials"
+    echo -e "6. Choose 'standalone' for dry-run mode or 'writeonly' to make real changes"
+    echo
+    echo -e "To access the status dashboard:"
+    echo -e "1. Log in to WHM"
+    echo -e "2. Go to 'Plugins' section"
+    echo -e "3. Click on 'CentralCloud DNS Status'"
+    echo
+    echo -e "Log file location: ${YELLOW}$LOG_FILE${NC}"
+    echo
+  else
+    error "Installation verification failed. The files may be corrupted."
+    exit 1
+  fi
+else
+  error "Installation failed. Some files are missing."
+  exit 1
+fi
+
+# Done
+exit 0

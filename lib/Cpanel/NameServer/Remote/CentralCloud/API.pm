@@ -1,13 +1,14 @@
-package Cpanel::NameServer::Remote::PowerDNS::API;
+package Cpanel::NameServer::Remote::CentralCloud::API;
 
 # A wrapper around HTTP::Tiny for use with the PowerDNS API
-# Adapted from the StackPath DNS plugin
+# Used by CentralCloud plugin to communicate with PowerDNS
 
 use strict;
 use warnings;
 
 use Cpanel::JSON::XS;
 use HTTP::Tiny;
+use Cpanel::Encoder::URI;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(pdns_url);
