@@ -13,7 +13,9 @@ This plugin allows cPanel servers to integrate with CentralCloud's PowerDNS serv
 - Health monitoring with email notifications
 - Auto-repair capability for DNS zone discrepancies
 - Status dashboard for monitoring the integration
-- Development mode for restricting operations to test domains only## Accessing the Status Dashboard
+- Development mode for restricting operations to test domains only
+
+## Accessing the Status Dashboard
 
 The plugin includes a web-based status dashboard that provides detailed information about the integration:
 
